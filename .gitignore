@@ -1,0 +1,7 @@
+/target
+.vscode
+Cargo.lock
+
+# testing
+src/sensitive.rs
+/testing
