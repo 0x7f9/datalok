@@ -1,21 +1,16 @@
 # d a t a l o k
 
-A fast and simple CLI (command line interface) data locking tool requiring only a custom made password file as a cipher key. Capable of encrypting any data stored on disk and restoring all data to original state.
+A fast and simple CLI (command line interface) data locking tool requiring only a custom made password file as a cipher key. Capable of encrypting any data stored on disk and decrypting all data to its original state.
 
-### Overview
-
-Datalok generates random values (a nonce and salt) for each file encrypted. These values along with the file extension, are combined and encrypted using stored values within the binary's code.
-
-**The encrypted file contains**:
-- File contents
-- Combined values
+**A encrypted file contains**:
+- File contents - Original file contents
+- Combined values - File extension, nonce and salt
   
-**How the encryption process works**:
+**How the process works**:
 1. The ```File contents``` are encrypted and stored within ```file_name.lok```.
 2. The nonce and salt used for encryption, and the file extension are combined.
 3. The ```Combined values``` are encrypted using stored values within the binary's code and then stored within the new ```file_name.lok```.
 4. The original file is removed from the system.
-
 
 During decryption, the ```Combined values``` are decrypted first, then using these values to decrypt the ```File contents``` and restore the file to its orginal state.  
 
@@ -54,6 +49,8 @@ datalok.exe
 # Usage:
   datalok <file or folder> <-e -d> [-r]
 ```
+[![Download](https://img.shields.io/badge/Download-v1.0.0-blue?style=flat)](https://github.com/0x7f9/datalok/releases/download/v1.0.0/datalok.exe)  
+
 ### CLI Examples
 ![datalock_example](https://github.com/0x7f9/datalok/assets/141240295/c39e547d-10f5-4216-8439-bb358a41d94f)  
 
