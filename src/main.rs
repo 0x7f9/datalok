@@ -1,45 +1,17 @@
-<<<<<<< HEAD
-use std::{env, path::{Path, PathBuf}};
-=======
 use std::{env, io::{self, Write}, path::{Path, PathBuf}, process::exit};
->>>>>>> 4a5048c (Added sessions)
 
 mod file_mod;
 mod cipher_mod;
 mod binary_mod;
 mod compress_mod;
-<<<<<<< HEAD
-// mod sensitive;
-
-struct Options {
-    file: PathBuf,
-=======
 
 struct Options {
     file: PathBuf,
     session: String,
->>>>>>> 4a5048c (Added sessions)
     mode: String,
     option: String,
 }
 
-<<<<<<< HEAD
-fn print_options() {
-    println!("
-    Options:
-    -e Encryption
-    -d Decryption
-    -r All files in a directory
-    
-    Usage:
-    datalok <file or folder> <-e -d> [-r]
-
-    Example:
-    datalok.exe folder -e -r
-    datalok.exe test.txt -e 
-    datalok.exe test.lok -d
-    ")
-=======
 fn print_options(error: &str) {
     println!("
     {error}
@@ -52,24 +24,11 @@ fn print_options(error: &str) {
     
     Usage:
     datalok <file or folder> [-s] <-e -d> [-r]")
->>>>>>> 4a5048c (Added sessions)
 }
 
 
 fn main() {
     let arg_file = env::args().nth(1).unwrap_or_default();
-<<<<<<< HEAD
-    let arg_mode = env::args().nth(2).unwrap_or_default();
-    let arg_option = env::args().nth(3).unwrap_or_default();
-
-    if arg_file.len() == 0 {
-        print_options();
-        return;
-    }
-    
-    let args = Options {
-        file: std::path::PathBuf::from(arg_file),
-=======
     let arg_session = env::args().nth(1).unwrap_or_default();
     let arg_mode = env::args().nth(2).unwrap_or_default();
     let arg_option = env::args().nth(3).unwrap_or_default();
@@ -77,36 +36,10 @@ fn main() {
     let args = Options {
         file: std::path::PathBuf::from(arg_file),
         session: arg_session,
->>>>>>> 4a5048c (Added sessions)
         mode: arg_mode,
         option: arg_option,
     };
 
-<<<<<<< HEAD
-    if !args.file.exists() {
-        println!("Error: Can not find file or folder");
-        print_options();
-        return;
-    }
-
-    println!("Input password file for session");
-    let password = &file_mod::get_password();
-    println!("Password file loaded\n");
-
-    // testing 
-    // if args.mode == "" || args.mode == "" {
-    //     unsafe {
-    //     sensitive::SAFE_MODE = true
-    //     }    
-    // }
-
-    // println!("{0}", sensitive::Sensitive(password.clone()));
-    check_options(args, password);
-}
-
-
-fn check_options(args: Options, password: &str) {
-=======
     if args.session == "-s" {
         // start a constant session 
         handle_session();
@@ -129,18 +62,12 @@ fn check_options(args: Options) {
     println!("Input password file");
     let password = &file_mod::get_password();
     
->>>>>>> 4a5048c (Added sessions)
     let mut files = Vec::new();
     if args.option == "-r" {
         files = file_mod::read_dir(&args.file);
     } else {
         if !args.file.is_file() {
-<<<<<<< HEAD
-            println!("Error: A directory can be encrypted only inside another directory");
-            print_options();
-=======
             print_options("Error: A directory can be encrypted only inside another directory");
->>>>>>> 4a5048c (Added sessions)
             return;
         }
         files.push(args.file);
@@ -158,8 +85,6 @@ fn check_options(args: Options) {
 }
 
 
-<<<<<<< HEAD
-=======
 fn handle_session() {
     fn print_commands() {
     // internal function
@@ -270,7 +195,6 @@ fn handle_session() {
 }
 
 
->>>>>>> 4a5048c (Added sessions)
 fn encrypt(file: &Path, password: &str, index: i32) {
     let check_file = file.to_string_lossy();
     if check_file.ends_with("lok") {
