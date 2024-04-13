@@ -23,18 +23,49 @@ fn read_password(file: &Path) -> String {
 }
 
 
+<<<<<<< HEAD
 pub fn get_password() -> String  {
+=======
+pub fn get_file() -> PathBuf {
+>>>>>>> 4a5048c (Added sessions)
     let file_path = FileDialog::new().show_open_single_file().unwrap_or_else(|err| {
         println!("Error: Invaild file path - {err}");
         exit(1)
     });
 
     if !file_path.is_some() {
+<<<<<<< HEAD
         println!("Error: No password file selected");
         exit(1);
     }
 
     let file = &file_path.unwrap();
+=======
+        println!("Error: No file selected");
+        return PathBuf::new();
+    }
+    file_path.unwrap()
+}
+
+
+pub fn get_folder() -> PathBuf {
+    let folder_path = FileDialog::new().show_open_single_dir().unwrap_or_else(|err| {
+        println!("Error: Invaild folder path - {err}");
+        exit(1)
+    });
+
+    if !folder_path.is_some() {
+        println!("Error: No Folder selected");
+        return PathBuf::new();
+    }
+    folder_path.unwrap()
+}
+
+
+pub fn get_password() -> String  {
+    let file = &get_file();
+    println!("Password file loaded\n");
+>>>>>>> 4a5048c (Added sessions)
     read_password(file)
 }
 
