@@ -10,7 +10,7 @@ A fast and simple command line data locking tool requiring only a custom made pa
 5. Delete the original file from the system.
 
 **Decryption process**:
-1. Decompress the data and decode it.
+1. Decompress and then decode the data.
 2. Extract the encrypted combined values, and decrypt them.
 3. Extract the encrypted file contents.
 4. Using the decrypted values to decrypt the extracted file contents and restore the file to its original state.
