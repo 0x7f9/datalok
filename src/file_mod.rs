@@ -1,6 +1,8 @@
 use std::{fs::{self, File}, io::Write, path::{Path, PathBuf}, process::exit};
 use native_dialog::FileDialog;
-// use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha512};
+
+use crate::cipher_mod;
 
 fn read_password(file: &Path) -> String {
     let contents = fs::read_to_string(file).unwrap_or_else(|err| {
@@ -12,14 +14,12 @@ fn read_password(file: &Path) -> String {
         println!("Error: File is empty");
         exit(1);
     }
-    contents
-
-    // TODO: find a way of adding salt which can be verified between run times.
-    // thinking of adding a salt value in stored_values() to use. 
-    // println!("Hashing password file....");
-    // let mut hash = Sha512::new();
-    // hash.update(contents);
-    // hex::encode(hash.finalize())
+    
+    let salt = cipher_mod::get_salt(&contents);
+    let password = [contents, salt].concat();
+    let mut hash = Sha512::new();
+    hash.update(password);
+    hex::encode(hash.finalize())
 }
 
 
@@ -30,7 +30,7 @@ pub fn get_file() -> PathBuf {
     });
 
     if !file_path.is_some() {
-        println!("Error: No file selected");
+        println!("Error: No file selected\n");
         return PathBuf::new();
     }
     file_path.unwrap()
@@ -44,7 +44,7 @@ pub fn get_folder() -> PathBuf {
     });
 
     if !folder_path.is_some() {
-        println!("Error: No Folder selected");
+        println!("Error: No Folder selected\n");
         return PathBuf::new();
     }
     folder_path.unwrap()
@@ -103,7 +103,7 @@ pub fn read_dir(file: &Path) -> Vec<PathBuf> {
         println!("Error: Reading directory - {err}");
         exit(1)
     });
-    
+
     println!("Folder contents:");
     for file in files {
         let file = file.unwrap();

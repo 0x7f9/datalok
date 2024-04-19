@@ -9,7 +9,7 @@ pub fn compress(file: &Path) {
     let contents = file_mod::read_file(input_file);
 
     // level 0-21
-    let mut encoder = Encoder::new(encode, 15).unwrap_or_else(|err| {
+    let mut encoder = Encoder::new(encode, 18).unwrap_or_else(|err| {
         println!("Error: Compressing file contents - {err}");
         exit(1)
     });

@@ -1,6 +1,14 @@
+use base64::Engine;
 use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit};
 use ring::{digest::SHA512_256_OUTPUT_LEN, pbkdf2};
 use std::num::NonZeroU32;
+use std::process::exit;
+use std::convert::TryInto;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use rand::seq::SliceRandom;
+
+use crate::engine_mod;
 
 static ALG: pbkdf2::Algorithm = pbkdf2::PBKDF2_HMAC_SHA512;
 
@@ -55,11 +63,9 @@ pub mod cipher {
 
 
     fn encrypt_values(file: &Path, nonce: &[u8], salt: &[u8]) {
-        let (stored_nonce, stored_salt, stored_password) = &stored_values();
-        let stored_password = std::str::from_utf8(stored_password).unwrap();
+        let (stored_nonce, stored_salt, stored_password, _) = &stored_values();
         let file_extension = file.extension().unwrap().to_string_lossy();
         let extension = file_extension.as_bytes();
-        
         let split = ":".as_bytes();
         let values = [nonce, split, salt, split, extension].concat();
 
@@ -77,12 +83,11 @@ pub mod cipher {
 
     
     fn decrypt_values(values: Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-        let (stored_nonce, stored_salt, stored_password) = &stored_values();
-        let stored_password = std::str::from_utf8(stored_password).unwrap();
+        let (stored_nonce, stored_salt, stored_password, _) = &stored_values();
 
         let cipher = gen_key(stored_password, stored_salt);
         let decrypt_values = cipher.decrypt(Nonce::from_slice(stored_nonce), values.as_ref()).map(|decrypt_values| {
-            let values: Vec<&[u8]> = decrypt_values.split(|&s| s == "::".as_bytes()[0]).collect();
+            let values  = decrypt_values.split(|&s| s == "::".as_bytes()[0]).collect::<Vec<&[u8]>>();
 
             if values.len() != 3 {
                 println!("Error: File is missing important values");
@@ -93,6 +98,7 @@ pub mod cipher {
             let nonce = values[0].to_vec();
             let salt = values[1].to_vec();
             let file_extension = values[2].to_vec();
+
             (nonce, salt, file_extension)
         }).unwrap_or_else(|err| {
             println!("Error: Decrypting salt, nonce, and file extension - {err}");
@@ -158,19 +164,61 @@ fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
 }
 
 
-fn stored_values() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-    // hard coded values used for encrypting and decrypting the
+pub fn get_salt(contents: &String) -> String {
+    let con_silce: String;
+
+    // getting salt depending on contents size
+    if contents.len() >= 32 {
+        con_silce  = contents[0..32].to_string();
+    } else if contents.len() >= 16 {
+        con_silce  = contents[0..16].to_string();
+    } else {
+        con_silce  = contents.to_string()
+    }
+    
+    let (_, _, _, stored_seed) = stored_values();
+    let seed = stored_seed.try_into().unwrap_or_else(|_| {
+        println!("Error: Can not fill whole bytes array");
+        exit(1)
+    });
+
+    let mut random = StdRng::from_seed(seed);
+    let mut chars = con_silce.chars().map(|x |x.to_string()).collect::<Vec<String>>();
+
+    // shuffle the content before returning it as the salt
+    chars.shuffle(&mut random);
+    chars.join("")
+}
+
+
+fn stored_values() -> (Vec<u8>, Vec<u8>, String, Vec<u8>) {
+    // hard coded values used in the second round of encryption for sealing the 
     // randomly generated nonce, salt and file extension before writing to the file.
     
     // most likely a better way to do this but i wanted the executable to be as portable as possible, 
     // and having config files limits that.
     // values were generated using randomness from the operating system.
-    let hex1 = "9e567349ffcd0b5b65bae05e";
-    let hex2 = "e974a91f794823f5117cda422a018a22";
-    let hex3 = "70617373776f7264";
-    let stored_nonce = hex::decode(hex1).unwrap();
-    let stored_salt = hex::decode(hex2).unwrap();
-    let stored_password = hex::decode(hex3).unwrap();
-    (stored_nonce, stored_salt, stored_password)
+
+    // encoded using custom base64
+    let mut values = Vec::new();
+    let stored_values = vec!["eHgu8O0olXWH++Rp", "YE8DB2Hzz0INOoDlbmhbzm==", "ySzXKn4IGSHhKcoEowWKFcNVIuSBIFHz8w4o7uxG7Ik7kIH5", "KkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkw="];
+
+    let engine = engine_mod::get_engine(false);
+    for value in stored_values {
+        let decode = engine.decode(value).unwrap_or_else(|err| {
+            println!("Error: Can not decode base64 - {}", err); 
+            exit(1);
+        });
+        
+        values.push(decode);
+    }
+    
+    let v1 = values[0].clone();
+    let v2 = values[1].clone();
+    let v3 = values[2].clone();
+    let v3 = String::from_utf8(v3).unwrap();
+    let v4 = values[3].clone();
+
+    (v1, v2, v3, v4)
 }
 

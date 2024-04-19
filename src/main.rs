@@ -2,8 +2,9 @@ use std::{env, io::{self, Write}, path::{Path, PathBuf}, process::exit};
 
 mod file_mod;
 mod cipher_mod;
-mod binary_mod;
+mod encode_mod;
 mod compress_mod;
+mod engine_mod;
 
 struct Options {
     file: PathBuf,
@@ -40,12 +41,15 @@ fn main() {
         option: arg_option,
     };
 
+    // start and store a cache of the base64 engine
+    engine_mod::get_engine(true);
+
     if args.session == "-s" {
         // start a constant session 
         handle_session();
     } else {
         if !args.file.exists() {
-            print_options("Error: Can not find file or folder");
+            print_options("Error: Can not find file, folder or session");
             return;
         }
     
@@ -87,7 +91,6 @@ fn check_options(args: Options) {
 
 fn handle_session() {
     fn print_commands() {
-    // internal function
     println!("
     Commands:   
         e | encrypt - Encryption
@@ -101,17 +104,14 @@ fn handle_session() {
     }
 
     fn get_input() -> Vec<String> {
-    // internal function
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    // split the reponse on every space map, each input to a string and collect in a vec 
-    let input = input.trim().split(" ").map(|x |x.to_string()).collect::<Vec<String>>();
-    input
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        input.trim().split(' ').map(|x |x.to_string()).collect::<Vec<String>>()
     }
 
     println!("Session started - Type help or h");
     println!("Input password file for session");
-    let password = &file_mod::get_password();
+    let password = file_mod::get_password().clone();
     loop {
         print!(">>:: "); 
         io::stdout().flush().unwrap(); 
@@ -124,26 +124,26 @@ fn handle_session() {
         } else if input == "e" || input == "encrypt" {
             let mut index = 0;
             if args.len() == 0 {
-                println!("Input a file to encrypt");
+                println!("Input a file to encrypt\n");
                 let file = &file_mod::get_file();
                 if !file.exists() {
                     continue;
                 }
-                println!("");
-                encrypt(file, password, index);
+                encrypt(file, &password, index);
 
             } else if args.get(0).unwrap() == "-r" {
-                println!("Input a folder to encrypt");
+                println!("Input a folder to encrypt\n");
                 let dir = file_mod::get_folder();
                 if !dir.exists() {
                     continue;
                 }
-                println!("");
+
                 let files = file_mod::read_dir(&dir);
-                for file in &files {
+                let send_password = password.clone();
+                for file in files {
                     index += 1;
-                    encrypt(file, password, index);
-                }
+                    encrypt(&file, &send_password, index)
+                } 
             
             } else {
                 println!("Error: Unknown command - Type help or h");
@@ -152,26 +152,25 @@ fn handle_session() {
         } else if input == "d" || input == "decrypt" {
             let mut index = 0;
             if args.len() == 0 {
-                println!("Input a file to decrypt");
+                println!("Input a file to decrypt\n");
                 let file = &file_mod::get_file();
                 if !file.exists() {
                     continue;
                 }
-                println!("");
-                decrypt(file, password, index);
+                decrypt(file, &password, index);
 
             } else if args.get(0).unwrap() == "-r" {
-                println!("Input a folder to decrypt");
+                println!("Input a folder to decrypt\n");
                 let dir = file_mod::get_folder();
                 if !dir.exists() {
                     continue;
                 }
-                println!("");
                 let files = file_mod::read_dir(&dir);
-                for file in &files {
+                let send_password = password.clone();
+                for file in files {
                     index += 1;
-                    decrypt(file, password, index);
-                }
+                    decrypt(&file, &send_password, index)
+                } 
 
             } else {
                 println!("Error: Unknown command - Type help or h");
@@ -188,9 +187,9 @@ fn handle_session() {
             if input.len() == 0 {
                 continue;
             }
-            println!("Error: Unknown command - Type help or h");
+            println!("Error: Unknown command - Type help or h\n");
         }
-        println!("");
+        println!("")
     }
 }
 
@@ -201,7 +200,7 @@ fn encrypt(file: &Path, password: &str, index: i32) {
         println!("({index}) Error: File is already encrypted");
         return;
     }
-
+    
     let contents = &file_mod::read_file(file);
     if contents.len() == 0 {
         println!("({index}) Error: No file contents found");
@@ -214,7 +213,8 @@ fn encrypt(file: &Path, password: &str, index: i32) {
         return;
     }
 
-    binary_mod::to_binary(file);
+    encode_mod::to_base64(file);
+    encode_mod::to_binary(file);
     compress_mod::compress(file);
 }
 
@@ -227,11 +227,13 @@ fn decrypt(file: &Path, password: &str, index: i32) {
     }
 
     compress_mod::decompress(file);
-    binary_mod::from_binary(file);
+    encode_mod::from_binary(file);
+    encode_mod::from_base64(file);
 
     if !cipher_mod::cipher::decrypt_contents(file, password, index) {
         // println!("DEBUG: Compressing file again...");
-        binary_mod::to_binary(file);
+        encode_mod::to_base64(file);
+        encode_mod::to_binary(file);
         compress_mod::compress(file);
     }
 }
