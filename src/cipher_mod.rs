@@ -44,7 +44,7 @@ pub mod cipher {
         let mut nonce = ChaCha20Poly1305::generate_nonce(&mut random);
         exclude_value(&mut random, &mut nonce);
 
-        let encrypted = cipher.encrypt(&nonce, contents).map(|encrypted| {
+        let encrypt = cipher.encrypt(&nonce, contents).map(|encrypted| {
             let mut out_file = file_mod::create_file(file, "lok".to_string());
             out_file.write_all(&(encrypted.len() as u64).to_le_bytes()).unwrap();
             out_file.write_all(&encrypted).unwrap(); 
@@ -58,36 +58,43 @@ pub mod cipher {
             false
         });
         encrypt_values(file, &nonce, &salt);
-        encrypted
+        encrypt
     }
 
 
     fn encrypt_values(file: &Path, nonce: &[u8], salt: &[u8]) {
-        let (stored_nonce, stored_salt, stored_password, _) = &stored_values();
+        let stored = stored_values();
         let file_extension = file.extension().unwrap().to_string_lossy();
         let extension = file_extension.as_bytes();
         let split = ":".as_bytes();
         let values = [nonce, split, salt, split, extension].concat();
 
-        let cipher = gen_key(stored_password, stored_salt);
-        cipher.encrypt(Nonce::from_slice(stored_nonce), values.as_ref()).map(|encrypt_values| {
+        let cipher = gen_key(&stored.v3, &stored.v2);
+        cipher.encrypt(Nonce::from_slice(&stored.v1), &*values).map(|encrypted_values| {
             let open_file = file.with_extension("lok");
             let mut out_file = OpenOptions::new().append(true).open(open_file).unwrap();
-            out_file.write_all(&(encrypt_values.len() as u64).to_le_bytes()).unwrap();
-            out_file.write_all(&encrypt_values).unwrap();
+            out_file.write_all(&(encrypted_values.len() as u64).to_le_bytes()).unwrap();
+            out_file.write_all(&encrypted_values).unwrap();
         }).unwrap_or_else(|err| {
             println!("Error: Encrypting salt, nonce, and file extension - {err}");
             exit(1)
         });
     }
 
-    
-    fn decrypt_values(values: Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-        let (stored_nonce, stored_salt, stored_password, _) = &stored_values();
 
-        let cipher = gen_key(stored_password, stored_salt);
-        let decrypt_values = cipher.decrypt(Nonce::from_slice(stored_nonce), values.as_ref()).map(|decrypt_values| {
-            let values  = decrypt_values.split(|&s| s == "::".as_bytes()[0]).collect::<Vec<&[u8]>>();
+    struct DecryptedValues {
+        nonce: Vec<u8>,
+        salt: Vec<u8>,
+        file_extension: Vec<u8>
+
+    }
+    
+    fn decrypt_values(values: Vec<u8>) -> DecryptedValues {
+        let stored = stored_values();
+
+        let cipher = gen_key(&stored.v3, &stored.v2);
+        let decrypted_values = cipher.decrypt(Nonce::from_slice(&stored.v1), &*values).map(|decrypted_values| {
+            let values  = decrypted_values.split(|&s| s == "::".as_bytes()[0]).collect::<Vec<&[u8]>>();
 
             if values.len() != 3 {
                 println!("Error: File is missing important values");
@@ -99,12 +106,12 @@ pub mod cipher {
             let salt = values[1].to_vec();
             let file_extension = values[2].to_vec();
 
-            (nonce, salt, file_extension)
+            DecryptedValues { nonce, salt, file_extension }
         }).unwrap_or_else(|err| {
             println!("Error: Decrypting salt, nonce, and file extension - {err}");
             exit(1)
         });
-        decrypt_values
+        decrypted_values
     }
     
 
@@ -125,10 +132,10 @@ pub mod cipher {
         let mut values = vec![0u8; bytes_values];
         input_file.read_exact(&mut values).unwrap();
 
-        let (nonce, salt, file_extension) = &decrypt_values(values);
-        let cipher = gen_key(password, salt);
-        let decrypted = cipher.decrypt(Nonce::from_slice(nonce), ciphertext.as_ref()).map(|decrypted| {
-            let file_extension = String::from_utf8_lossy(file_extension).into_owned();
+        let decrypted_values = decrypt_values(values);
+        let cipher = gen_key(password, &decrypted_values.salt);
+        let decrypt = cipher.decrypt(Nonce::from_slice(&decrypted_values.nonce), &*ciphertext).map(|decrypted| {
+            let file_extension = String::from_utf8_lossy(&decrypted_values.file_extension).into_owned();
             let display = file.with_extension(&file_extension).file_name().unwrap().to_string_lossy().to_string();
            
             let mut create_file = file_mod::create_file(file, file_extension);
@@ -138,10 +145,10 @@ pub mod cipher {
             true
         }).unwrap_or_else(|_| {
             println!("({index}) Error: Wrong password file");
-            encrypt_values(file, nonce, salt);
+            encrypt_values(file, &decrypted_values.nonce, &decrypted_values.salt);
             false
         });
-        decrypted
+        decrypt
     }
 }
 
@@ -172,12 +179,14 @@ pub fn get_salt(contents: &String) -> String {
         con_silce  = contents[0..32].to_string();
     } else if contents.len() >= 16 {
         con_silce  = contents[0..16].to_string();
+    } else if contents.len() >= 8 {
+        con_silce  = contents[0..8].to_string();
     } else {
         con_silce  = contents.to_string()
     }
     
-    let (_, _, _, stored_seed) = stored_values();
-    let seed = stored_seed.try_into().unwrap_or_else(|_| {
+    let stored = stored_values();
+    let seed = stored.v4.try_into().unwrap_or_else(|_| {
         println!("Error: Can not fill whole bytes array");
         exit(1)
     });
@@ -191,7 +200,14 @@ pub fn get_salt(contents: &String) -> String {
 }
 
 
-fn stored_values() -> (Vec<u8>, Vec<u8>, String, Vec<u8>) {
+struct StoredValues {
+    v1: Vec<u8>,
+    v2: Vec<u8>,
+    v3: String,
+    v4: Vec<u8>
+}
+
+fn stored_values() -> StoredValues {
     // hard coded values used in the second round of encryption for sealing the 
     // randomly generated nonce, salt and file extension before writing to the file.
     
@@ -203,7 +219,7 @@ fn stored_values() -> (Vec<u8>, Vec<u8>, String, Vec<u8>) {
     let mut values = Vec::new();
     let stored_values = vec!["eHgu8O0olXWH++Rp", "YE8DB2Hzz0INOoDlbmhbzm==", "ySzXKn4IGSHhKcoEowWKFcNVIuSBIFHz8w4o7uxG7Ik7kIH5", "KkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkHgKkw="];
 
-    let engine = engine_mod::get_engine(false);
+    let engine = engine_mod::get_engine();
     for value in stored_values {
         let decode = engine.decode(value).unwrap_or_else(|err| {
             println!("Error: Can not decode base64 - {}", err); 
@@ -219,6 +235,6 @@ fn stored_values() -> (Vec<u8>, Vec<u8>, String, Vec<u8>) {
     let v3 = String::from_utf8(v3).unwrap();
     let v4 = values[3].clone();
 
-    (v1, v2, v3, v4)
+    StoredValues { v1, v2, v3, v4 }
 }
 

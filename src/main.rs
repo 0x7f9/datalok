@@ -1,4 +1,5 @@
 use std::{env, io::{self, Write}, path::{Path, PathBuf}, process::exit};
+use inquire::{Password, PasswordDisplayMode};
 
 mod file_mod;
 mod cipher_mod;
@@ -6,54 +7,66 @@ mod encode_mod;
 mod compress_mod;
 mod engine_mod;
 
-struct Options {
-    file: PathBuf,
-    session: String,
-    mode: String,
-    option: String,
-}
-
 fn print_options(error: &str) {
     println!("
     {error}
     
-    Options:
-    -e Encryption
-    -d Decryption
-    -s Start a session
-    -r Recursively processes files in a directory
-    
+    Flags:
+        -e Encryption
+        -d Decryption
+        -s Start a session
+        -r Recursively processes files in a directory
+        -p Prompted to type in a password
+        
     Usage:
-    datalok <file or folder> [-s] <-e -d> [-r]")
+        datalok <file or folder> [-s] <-e -d> [-r][-p]")
 }
 
 
-fn main() {
-    let arg_file = env::args().nth(1).unwrap_or_default();
-    let arg_session = env::args().nth(1).unwrap_or_default();
-    let arg_mode = env::args().nth(2).unwrap_or_default();
-    let arg_option = env::args().nth(3).unwrap_or_default();
+fn print_commands() {
+    println!("
+    Commands:   
+        e | encrypt - Encryption
+        d | decrypt - Decryption
+        h | help - Shows all commands
+        cls - Clear the console
+        exit - Exits the session
+        
+    Flags:
+        -r Recursively processes files in a directory")
+}
 
+
+struct Options {
+    file: PathBuf,
+    session: String,
+    options: Vec<String>
+}
+
+fn main() {
+    let input = env::args().collect::<Vec<String>>();
+    if input.len() == 1 {
+        print_options("Error: No options chosen");
+        return;
+    }
+
+    let args = &input[1..];
     let args = Options {
-        file: std::path::PathBuf::from(arg_file),
-        session: arg_session,
-        mode: arg_mode,
-        option: arg_option,
+        file: std::path::PathBuf::from(&args[0]),
+        session: args[0].clone(),
+        options: args[1..].to_vec(),
     };
 
-    // start and store a cache of the base64 engine
-    engine_mod::get_engine(true);
-
     if args.session == "-s" {
-        // start a constant session 
-        handle_session();
+        let password = password_option(&args);
+        handle_session(password);
     } else {
         if !args.file.exists() {
             print_options("Error: Can not find file, folder or session");
             return;
         }
     
-        if args.mode.len() == 0 {
+        if args.options.len() == 0 {
             print_options("Error: No encryption mode chosen");
             return;
         }
@@ -61,13 +74,41 @@ fn main() {
     }
 }
 
+ 
+#[allow(unused_assignments)]
+fn password_option(args: &Options) -> String {
+    let mut password = String::new();
+    if args.options.len() == 1 && args.options[0] == "-p" || args.options.len() == 2 && args.options[1] == "-p" || args.options.len() == 3 && args.options[2] == "-p" { 
+        password = Password::new("Password:")
+        .with_display_mode(PasswordDisplayMode::Masked)
+        .with_custom_confirmation_message("Password (confirm):")
+        .with_custom_confirmation_error_message("Passwords do not match")
+        .prompt()
+        .unwrap_or_else(|err| {
+            println!("Error: {err}");
+            exit(1)
+        });
+
+        if password.len() == 0 {
+            
+            println!("Error: Password can not be empty");
+            exit(1);
+        }
+        println!("Password loaded");
+        password = file_mod::sha512_hasher(password)
+        
+    } else {
+        println!("Input password file");
+        password = file_mod::get_password()
+    }
+    password
+}
+
 
 fn check_options(args: Options) {
-    println!("Input password file");
-    let password = &file_mod::get_password();
-    
+    let password = password_option(&args);
     let mut files = Vec::new();
-    if args.option == "-r" {
+    if args.options.len() >= 2 && args.options[1] == "-r" {
         files = file_mod::read_dir(&args.file);
     } else {
         if !args.file.is_file() {
@@ -80,38 +121,23 @@ fn check_options(args: Options) {
     let mut index = 0;
     for file in &files {
         index += 1;
-        if args.mode == "-e" {
-            encrypt(file, password, index);
+        if args.options[0] == "-e" {
+            encrypt(file, &password, index);
         } else {
-            decrypt(file, password, index);
+            decrypt(file, &password, index);
         }
     }
 }
 
 
-fn handle_session() {
-    fn print_commands() {
-    println!("
-    Commands:   
-        e | encrypt - Encryption
-        d | decrypt - Decryption
-        h | help - Shows all commands
-        cls - Clear the console
-        exit - Exits the session
-        
-        Flags:
-        -r Recursively processes files in a directory")
-    }
-
+fn handle_session(password: String) {
     fn get_input() -> Vec<String> {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
         input.trim().split(' ').map(|x |x.to_string()).collect::<Vec<String>>()
     }
 
-    println!("Session started - Type help or h");
-    println!("Input password file for session");
-    let password = file_mod::get_password().clone();
+    println!("Session started - Type 'h' for help\n");
     loop {
         print!(">>:: "); 
         io::stdout().flush().unwrap(); 
@@ -131,7 +157,7 @@ fn handle_session() {
                 }
                 encrypt(file, &password, index);
 
-            } else if args.get(0).unwrap() == "-r" {
+            } else if args[0] == "-r" {
                 println!("Input a folder to encrypt\n");
                 let dir = file_mod::get_folder();
                 if !dir.exists() {
@@ -146,7 +172,7 @@ fn handle_session() {
                 } 
             
             } else {
-                println!("Error: Unknown command - Type help or h");
+                println!("Error: Unknown command - Type 'h' for help");
             }
 
         } else if input == "d" || input == "decrypt" {
@@ -159,7 +185,7 @@ fn handle_session() {
                 }
                 decrypt(file, &password, index);
 
-            } else if args.get(0).unwrap() == "-r" {
+            } else if args[0] == "-r" {
                 println!("Input a folder to decrypt\n");
                 let dir = file_mod::get_folder();
                 if !dir.exists() {
@@ -173,7 +199,7 @@ fn handle_session() {
                 } 
 
             } else {
-                println!("Error: Unknown command - Type help or h");
+                println!("Error: Unknown command - Type 'h' for help");
             }
 
         } else if input == "h" || input == "help" {
@@ -187,7 +213,7 @@ fn handle_session() {
             if input.len() == 0 {
                 continue;
             }
-            println!("Error: Unknown command - Type help or h\n");
+            println!("Error: Unknown command - Type 'h' for help");
         }
         println!("")
     }

@@ -4,17 +4,23 @@ use sha2::{Digest, Sha512};
 
 use crate::cipher_mod;
 
-fn read_password(file: &Path) -> String {
+pub fn get_password() -> String {
+    let file = &get_file();
     let contents = fs::read_to_string(file).unwrap_or_else(|err| {
         println!("Error: Reading in password file - {err}");
         exit(1);
     });
-
+    
     if contents.len() == 0 {
         println!("Error: File is empty");
         exit(1);
     }
-    
+    println!("Password file loaded");
+    sha512_hasher(contents)
+}
+
+
+pub fn sha512_hasher(contents: String) -> String {
     let salt = cipher_mod::get_salt(&contents);
     let password = [contents, salt].concat();
     let mut hash = Sha512::new();
@@ -48,13 +54,6 @@ pub fn get_folder() -> PathBuf {
         return PathBuf::new();
     }
     folder_path.unwrap()
-}
-
-
-pub fn get_password() -> String  {
-    let file = &get_file();
-    println!("Password file loaded\n");
-    read_password(file)
 }
 
 
@@ -100,15 +99,19 @@ pub fn read_dir(file: &Path) -> Vec<PathBuf> {
     let mut dir = Vec::new();
     let mut index = 0;
     let files = fs::read_dir(file).unwrap_or_else(|err| {
-        println!("Error: Reading directory - {err}");
+        println!("Error: Directory is empty - {err}");
         exit(1)
     });
 
     println!("Folder contents:");
     for file in files {
+        let file = file.map_err(|err| {
+            println!("Error: {err}");
+        });
+
         let file = file.unwrap();
         if !file.path().is_file() {
-            continue;
+            continue; 
         }
         index += 1;
         let full_path = file.path();

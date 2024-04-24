@@ -1,14 +1,15 @@
 [package]
 name = "datalok"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [dependencies]
-rand = "0.8.5"
 chacha20poly1305 = "0.10.1"
+base64 = "0.22.0"
+rand = "0.8.5"
 ring = "0.17.8"
 native-dialog = "0.6.0"
 sha2 = "0.9.5"
 zstd = "0.5.2"
 hex = "0.4.3"
-base64 = "0.22.0"
+inquire = "0.7.5"

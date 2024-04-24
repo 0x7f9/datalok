@@ -15,22 +15,25 @@ fn new_engine() -> GeneralPurpose {
     let letters = "LRlnVShBz4b6Goy57N8FIkKEagTMtxpOmqvcwH9eZDPJCW+Q1UAusXf2jrYi/d30";
     let set = Alphabet::new(letters).unwrap();
     let engine = GeneralPurpose::new(&set, config);
-    engine.clone()
+    engine
 }
 
 
-pub fn get_engine(new: bool) -> GeneralPurpose {
+pub fn get_engine() -> GeneralPurpose {
     // this is kinda safe as the program is not multi threaded right??? 
     unsafe {
-        if new {
+        // check if there is a cache
+        if B64_CACHE.is_none() { 
             // build a new engine and config then cache it
             // can pass through new letter sets here for each engine
-            B64_CACHE = Some(new_engine())
-        } 
+            B64_CACHE = Some(new_engine());
+        }
+
         // returning the cached engine
-        B64_CACHE.clone().unwrap_or_else(|| {
+        return B64_CACHE.clone().unwrap_or_else(|| {
             println!("Error: Can not retrieve engine cache");
             exit(1)
-        })
+        });
     }
 }
+

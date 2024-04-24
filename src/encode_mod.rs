@@ -47,7 +47,7 @@ pub fn to_base64(file: &Path) {
     let input_file = &file.with_extension("lok");
     let contents = file_mod::read_file(input_file);
     
-    let engine = engine_mod::get_engine(false);
+    let engine = engine_mod::get_engine();
     let encoded = engine.encode(contents);
     file_mod::write_strings(file, &encoded);
 }
@@ -57,7 +57,7 @@ pub fn from_base64(file: &Path) {
     let input_file = file.with_extension("lok");
     let contents = file_mod::read_file(&input_file);
 
-    let engine = get_engine(false);
+    let engine = get_engine();
     let decoded = engine.decode(contents).unwrap_or_else(|err| {
         println!("Error: Can not decode base64 contents - {err}");
         exit(1);
